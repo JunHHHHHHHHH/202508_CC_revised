@@ -4,14 +4,13 @@
 class TextProcessor {
     static formatMessage(text) {
         return text
-            .replace(/\n\n+/g, '\n\n')  // Remove excessive line breaks
-            .replace(/\s+/g, ' ')       // Replace multiple spaces with single space
+            .replace(/\n\n+/g, '\n\n') // Remove excessive line breaks
+            .replace(/\s+/g, ' ') // Replace multiple spaces with single space
             .trim();
     }
 
     static highlightKeywords(text, keywords) {
         if (!keywords || keywords.length === 0) return text;
-        
         const regex = new RegExp(`(${keywords.join('|')})`, 'gi');
         return text.replace(regex, '<mark>$1</mark>');
     }
@@ -48,7 +47,7 @@ class StorageManager {
         if (saved.length > 10) {
             saved.shift();
         }
-        
+
         localStorage.setItem('gokseong_conversations', JSON.stringify(saved));
         return conversation.id;
     }
@@ -156,18 +155,15 @@ class AnimationHelper {
         element.style.display = 'block';
         
         const start = performance.now();
-        
         const animate = (currentTime) => {
             const elapsed = currentTime - start;
             const progress = Math.min(elapsed / duration, 1);
-            
             element.style.opacity = progress.toString();
             
             if (progress < 1) {
                 requestAnimationFrame(animate);
             }
         };
-        
         requestAnimationFrame(animate);
     }
 
@@ -178,7 +174,6 @@ class AnimationHelper {
         const animate = (currentTime) => {
             const elapsed = currentTime - start;
             const progress = Math.min(elapsed / duration, 1);
-            
             element.style.opacity = (initialOpacity * (1 - progress)).toString();
             
             if (progress < 1) {
@@ -187,7 +182,6 @@ class AnimationHelper {
                 element.style.display = 'none';
             }
         };
-        
         requestAnimationFrame(animate);
     }
 
@@ -204,18 +198,16 @@ class AnimationHelper {
         element.style.display = 'block';
         
         const start = performance.now();
-        
         const animate = (currentTime) => {
             const elapsed = currentTime - start;
             const progress = Math.min(elapsed / duration, 1);
-            
             const easeOut = 1 - Math.pow(1 - progress, 3);
             
             element.style.opacity = easeOut.toString();
-            element.style.transform = `${transforms[direction].replace(/[-\d]+px/, (match) => {
+            element.style.transform = transforms[direction].replace(/[-\d]+px/, (match) => {
                 const value = parseInt(match);
                 return (value * (1 - easeOut)) + 'px';
-            })}`;
+            });
             
             if (progress < 1) {
                 requestAnimationFrame(animate);
@@ -223,7 +215,6 @@ class AnimationHelper {
                 element.style.transform = 'none';
             }
         };
-        
         requestAnimationFrame(animate);
     }
 }
@@ -234,7 +225,7 @@ class NetworkHelper {
         if (!navigator.onLine) {
             return false;
         }
-        
+
         try {
             const response = await fetch('/ping', {
                 method: 'HEAD',
@@ -264,15 +255,14 @@ class Analytics {
     static trackEvent(event, data = {}) {
         console.log(`Analytics Event: ${event}`, data);
         
-        // In a real implementation, this would send to analytics service
         const eventData = {
             event,
             timestamp: new Date().toISOString(),
             data,
             sessionId: this.getSessionId()
         };
-        
-        // Store locally for now
+
+        // Store locally
         const events = JSON.parse(localStorage.getItem('analytics_events') || '[]');
         events.push(eventData);
         
@@ -280,7 +270,7 @@ class Analytics {
         if (events.length > 100) {
             events.shift();
         }
-        
+
         localStorage.setItem('analytics_events', JSON.stringify(events));
     }
 
@@ -295,7 +285,6 @@ class Analytics {
 
     static getUsageStats() {
         const events = JSON.parse(localStorage.getItem('analytics_events') || '[]');
-        
         return {
             totalEvents: events.length,
             messagesSent: events.filter(e => e.event === 'message_sent').length,
