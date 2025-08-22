@@ -1,0 +1,40 @@
+{
+    "name": "곡성군 AI 민원상담봇",
+    "short_name": "곡성군 AI상담",
+    "description": "곡성군 민원편람 기반 AI 상담 서비스",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#0ea5e9",
+    "orientation": "portrait-primary",
+    "icons": [
+        {
+            "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' fill='%230ea5e9' rx='20'/><text x='96' y='120' font-size='80' text-anchor='middle' fill='white'>🏛️</text></svg>",
+            "sizes": "192x192",
+            "type": "image/svg+xml"
+        },
+        {
+            "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' fill='%230ea5e9' rx='50'/><text x='256' y='320' font-size='200' text-anchor='middle' fill='white'>🏛️</text></svg>",
+            "sizes": "512x512",
+            "type": "image/svg+xml"
+        }
+    ],
+    "categories": ["government", "productivity", "utilities"],
+    "lang": "ko-KR",
+    "scope": "/",
+    "shortcuts": [
+        {
+            "name": "새 상담 시작",
+            "short_name": "새 상담",
+            "description": "새로운 민원 상담을 시작합니다",
+            "url": "/",
+            "icons": [
+                {
+                    "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' fill='%230ea5e9' rx='10'/><text x='48' y='60' font-size='40' text-anchor='middle' fill='white'>💬</text></svg>",
+                    "sizes": "96x96",
+                    "type": "image/svg+xml"
+                }
+            ]
+        }
+    ]
+}
