@@ -1,10 +1,15 @@
 // Service Worker for Gokseong AI Chatbot PWA
-const CACHE_NAME = 'gokseong-chatbot-v1.0.0';
+
+const CACHE_NAME = 'gokseong-chatbot-v1.0.1';
+
 const urlsToCache = [
     '/',
     '/index.html',
-    '/css/style.css',
-    '/js/main.js',
+    '/style.css',
+    '/main.js',
+    '/utils.js',
+    '/rag-engine.js',
+    '/manifest.json',
     'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap',
     'https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css',
     'https://cdn.tailwindcss.com'
@@ -28,8 +33,7 @@ self.addEventListener('fetch', event => {
             .then(response => {
                 // Return cached version or fetch from network
                 return response || fetch(event.request);
-            }
-        )
+            })
     );
 });
 
