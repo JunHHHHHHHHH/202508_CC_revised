@@ -1,8 +1,8 @@
-# 🏛️ 곡성군 AI 민원상담봇
+# 🏛️ 곡성군 AI 민원상담봇 _ revised
 
 ## 프로젝트 개요
 
-곡성군 AI 민원상담봇은 곡성군 민원편람 2025를 기반으로 한 지능형 AI 상담 시스템입니다. 기존 Streamlit 기반 애플리케이션을 현대적인 웹 애플리케이션으로 완전히 새롭게 개발하여 더 나은 사용자 경험을 제공합니다.
+곡성군 AI 민원상담봇은 곡성군 민원편람 2025를 기반으로 한 지능형 AI 상담 시스템입니다. 
 
 ### 🎯 주요 목표
 - 24시간 민원 상담 서비스 제공
@@ -69,37 +69,6 @@
     └── 📄 deployment.md       # 배포 가이드
 ```
 
-## 🚀 시작하기
-
-### 1. 프로젝트 클론
-```bash
-# 프로젝트를 로컬에 복사
-git clone <repository-url>
-cd gokseong-ai-chatbot
-```
-
-### 2. 웹 서버 실행
-```bash
-# Python 3을 사용하는 경우
-python -m http.server 8000
-
-# Node.js를 사용하는 경우
-npx serve .
-
-# Live Server (VS Code 확장)을 사용하는 경우
-# VS Code에서 index.html 우클릭 -> "Open with Live Server"
-```
-
-### 3. 브라우저에서 접속
-```
-http://localhost:8000
-```
-
-### 4. OpenAI API 키 설정
-1. 상단 우측 ⚙️ 설정 버튼 클릭
-2. OpenAI API 키 입력 (sk-로 시작하는 키)
-3. 저장 버튼 클릭
-
 ## 🔧 설정 및 사용법
 
 ### API 키 설정
@@ -141,15 +110,6 @@ class StorageManager      // 로컬 저장소 관리
 class FileHandler         // 파일 처리
 class AnimationHelper     // 애니메이션 도우미
 class Analytics          // 분석 및 추적
-```
-
-### 개발 서버 실행
-```bash
-# 개발용 라이브 서버 (파일 변경 시 자동 새로고침)
-npx live-server --port=8000
-
-# 또는 Python의 간단한 서버
-python -m http.server 8000
 ```
 
 ## 🌐 배포 가이드
@@ -215,22 +175,11 @@ python -m http.server 8000
 ## 📞 지원 및 연락처
 
 ### 기술 문의
-- 이슈 등록: GitHub Issues
-- 이메일: [담당자 이메일]
-
-### 곡성군 민원 문의
-- 전화: 061-360-8000
-- 주소: 전라남도 곡성군 곡성읍 군청로 31
-- 운영시간: 평일 09:00-18:00
+- 이메일: [비공개]
 
 ## 📄 라이선스
 
 이 프로젝트는 MIT 라이선스 하에 배포됩니다. 자세한 내용은 LICENSE 파일을 참조하세요.
-
-## 🙏 감사의 말
-
-이 프로젝트는 곡성군 민원 서비스 개선을 위해 개발되었습니다. 더 나은 민원 서비스를 위해 기여해주신 모든 분들께 감사드립니다.
-
 ---
 
 **최종 업데이트**: 2025년 1월
