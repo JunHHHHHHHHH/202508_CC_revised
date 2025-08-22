@@ -1,4 +1,4 @@
-// main.js – 곡성군 AI 민원상담 챗봇 (완전 수정 버전)
+// main.js – 곡성군 AI 민원상담 챗봇 (Cloudflare 호환 버전)
 
 class GokseongChatbot {
     constructor() {
@@ -7,10 +7,34 @@ class GokseongChatbot {
         this.questionCount = 0;
         this.processing = false;
         this.typingSpeed = parseFloat(localStorage.getItem('typing_speed')) || 0.02;
-        this.ragEngine = new RAGEngine();
+        this.ragEngine = null;
         this.ragInitialized = false;
         this.fileNames = ['곡성군 민원편람 2025'];
-        this.init();
+        this.initializeWhenReady();
+    }
+
+    async initializeWhenReady() {
+        // 페이지 로드 완료 대기
+        if (document.readyState === 'loading') {
+            await new Promise(resolve => {
+                document.addEventListener('DOMContentLoaded', resolve);
+            });
+        }
+
+        // 필요한 라이브러리들 로드 대기 (선택적)
+        await this.waitForLibraries();
+
+        // 실제 초기화 진행
+        await this.init();
+    }
+
+    async waitForLibraries() {
+        // TensorFlow.js 로드 대기 (선택적)
+        if (typeof tf !== 'undefined') {
+            console.log('TensorFlow.js 로드됨');
+        } else {
+            console.warn('TensorFlow.js가 로드되지 않음 - 기본 모드로 진행');
+        }
     }
 
     async init() {
@@ -19,16 +43,21 @@ class GokseongChatbot {
         this.setupMessageInput();
         this.loadSuggestedQuestions();
         
-        // RAG 엔진 초기화
+        // RAG 엔진 초기화 (선택적)
         try {
-            await this.ragEngine.initialize();
-            this.ragInitialized = true;
-            console.log('RAG 엔진 초기화 완료');
+            if (typeof RAGEngine !== 'undefined' && typeof tf !== 'undefined') {
+                this.ragEngine = new RAGEngine();
+                await this.ragEngine.initialize();
+                this.ragInitialized = true;
+                console.log('RAG 엔진 초기화 완료');
+            } else {
+                console.log('RAG 기능 비활성화 - 기본 OpenAI 채팅 모드');
+            }
         } catch (e) {
-            console.error('RAG 엔진 초기화 실패:', e);
-            this.showToast('문서 검색 기능 초기화에 실패했습니다.', 'warning');
+            console.warn('RAG 엔진 초기화 실패, 기본 모드로 진행:', e);
         }
 
+        // 타이핑 속도 설정
         const savedTypingSpeed = localStorage.getItem('typing_speed');
         if (savedTypingSpeed) {
             const speedSlider = document.getElementById('typingSpeed');
@@ -36,6 +65,8 @@ class GokseongChatbot {
                 speedSlider.value = savedTypingSpeed;
             }
         }
+
+        console.log('곡성군 AI 챗봇 초기화 완료');
     }
 
     bindEvents() {
@@ -55,6 +86,14 @@ class GokseongChatbot {
                 }
             });
             messageInput.addEventListener('input', this.autoResizeTextarea);
+        }
+
+        // File upload button
+        const fileUploadBtn = document.getElementById('fileUploadBtn');
+        const fileUpload = document.getElementById('fileUpload');
+        if (fileUploadBtn && fileUpload) {
+            fileUploadBtn.addEventListener('click', () => fileUpload.click());
+            fileUpload.addEventListener('change', (e) => this.handleFileUpload(e));
         }
 
         // Settings modal events
@@ -93,18 +132,20 @@ class GokseongChatbot {
             clearChat.addEventListener('click', () => this.clearChat());
         }
 
-        // File upload event
-        const fileUpload = document.getElementById('fileUpload');
-        if (fileUpload) {
-            fileUpload.addEventListener('change', (e) => this.handleFileUpload(e));
-        }
-
         // Suggested questions
         document.querySelectorAll('.suggested-question').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const question = e.currentTarget.getAttribute('data-question');
                 this.askSuggestedQuestion(question);
             });
+        });
+
+        // ESC 키로 모달 닫기
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.closeSettingsModal();
+                this.closeHelpModal();
+            }
         });
     }
 
@@ -148,13 +189,21 @@ class GokseongChatbot {
         input.value = '';
         input.style.height = 'auto';
         this.updateSendButton();
-
+        
         this.addMessage('user', message);
         this.updateQuestionCount();
         this.showTypingIndicator();
 
         try {
-            const response = await this.processRAGQuery(message);
+            let response;
+            
+            // RAG 기능이 있으면 사용, 없으면 기본 OpenAI 호출
+            if (this.ragInitialized && this.ragEngine) {
+                response = await this.processRAGQuery(message);
+            } else {
+                response = await this.processBasicQuery(message);
+            }
+            
             this.hideTypingIndicator();
             await this.addTypingMessage('ai', response);
         } catch (error) {
@@ -166,6 +215,99 @@ class GokseongChatbot {
 
         this.processing = false;
         this.updateSendButton();
+    }
+
+    async processBasicQuery(query) {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.apiKey}`
+            },
+            body: JSON.stringify({
+                model: 'gpt-3.5-turbo',
+                messages: [
+                    {
+                        role: 'system',
+                        content: '당신은 곡성군의 친절한 AI 민원상담봇입니다. 곡성군 민원과 관련된 질문에 도움이 되는 답변을 제공해주세요. 정확하지 않은 정보는 제공하지 말고, 확실하지 않은 경우 곡성군청(061-360-8000)으로 문의하도록 안내해주세요.'
+                    },
+                    {
+                        role: 'user',
+                        content: query
+                    }
+                ],
+                max_tokens: 1000,
+                temperature: 0.7
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(`OpenAI API 오류: ${response.status} - ${errorData.error?.message || '알 수 없는 오류'}`);
+        }
+
+        const data = await response.json();
+        return data.choices[0].message.content;
+    }
+
+    async processRAGQuery(query) {
+        if (!this.ragInitialized || !this.ragEngine) {
+            return await this.processBasicQuery(query);
+        }
+
+        try {
+            const { context, sources, forms } = await this.ragEngine.buildContext(query);
+            
+            const systemPrompt = `당신은 곡성군의 AI 민원상담봇입니다. 다음 문서 내용을 참고하여 정확하고 친절한 답변을 제공해주세요.
+
+문서 내용:
+${context}
+
+답변 가이드라인:
+1. 문서에 있는 정보를 바탕으로 정확한 답변을 제공하세요
+2. 문서에 없는 내용은 추측하지 마세요
+3. 필요시 곡성군청(061-360-8000)으로 문의하도록 안내하세요
+4. 친절하고 이해하기 쉽게 설명해주세요`;
+
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.apiKey}`
+                },
+                body: JSON.stringify({
+                    model: 'gpt-3.5-turbo',
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: query }
+                    ],
+                    max_tokens: 1000,
+                    temperature: 0.7
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`OpenAI API 오류: ${response.status}`);
+            }
+
+            const data = await response.json();
+            let answer = data.choices[0].message.content;
+
+            // 출처 정보 추가
+            if (sources.length > 0) {
+                answer += '\n\n📋 **참고 문서:**\n' + sources.slice(0, 3).map(s => `• ${s}`).join('\n');
+            }
+
+            // 관련 서식 정보 추가
+            if (forms.length > 0) {
+                answer += '\n\n📝 **관련 서식:**\n' + forms.slice(0, 3).map(f => `• ${f}`).join('\n');
+            }
+
+            return answer;
+        } catch (error) {
+            console.error('RAG 처리 중 오류:', error);
+            return await this.processBasicQuery(query);
+        }
     }
 
     updateSendButton() {
@@ -192,19 +334,20 @@ class GokseongChatbot {
         indicator.id = 'typing-indicator';
         indicator.className = 'flex items-start space-x-3';
         indicator.innerHTML = `
-            <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
-                AI
+            <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                <i class="fas fa-robot text-white text-sm"></i>
             </div>
             <div class="flex-1">
-                <div class="ai-message p-4 rounded-lg">
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 max-w-2xl">
                     <div class="typing-indicator">
-                        <span class="typing-dot"></span>
-                        <span class="typing-dot"></span>
-                        <span class="typing-dot"></span>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
                     </div>
                 </div>
             </div>
         `;
+
         messagesContainer.appendChild(indicator);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
@@ -223,23 +366,31 @@ class GokseongChatbot {
         const messageDiv = document.createElement('div');
         messageDiv.className = 'flex items-start space-x-3 message-enter';
 
-        const isUser = type === 'user';
-        const timestamp = new Date().toLocaleTimeString('ko-KR', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-        });
-
-        messageDiv.innerHTML = `
-            <div class="w-8 h-8 ${isUser ? 'bg-green-500' : 'bg-blue-500'} rounded-full flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
-                ${isUser ? '👤' : 'AI'}
-            </div>
-            <div class="flex-1">
-                <div class="${isUser ? 'user-message' : 'ai-message'} p-4 rounded-lg">
-                    <div class="message-content">${this.formatMessageContent(content)}</div>
+        if (type === 'user') {
+            messageDiv.innerHTML = `
+                <div class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                    <i class="fas fa-user text-white text-sm"></i>
                 </div>
-                <div class="text-xs text-gray-400 mt-1">${timestamp}</div>
-            </div>
-        `;
+                <div class="flex-1">
+                    <div class="bg-blue-500 text-white rounded-lg p-4 max-w-2xl ml-auto user-message">
+                        <p>${this.escapeHtml(content)}</p>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1 text-right">방금 전</p>
+                </div>
+            `;
+        } else {
+            messageDiv.innerHTML = `
+                <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                    <i class="fas fa-robot text-white text-sm"></i>
+                </div>
+                <div class="flex-1">
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 max-w-2xl ai-message">
+                        <div class="message-content">${this.formatMessage(content)}</div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">방금 전</p>
+                </div>
+            `;
+        }
 
         messagesContainer.appendChild(messageDiv);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -252,170 +403,148 @@ class GokseongChatbot {
         });
     }
 
-    formatMessageContent(content) {
-        // 간단한 마크다운 형식 지원
+    async addTypingMessage(type, content) {
+        const messagesContainer = document.getElementById('messagesContainer');
+        if (!messagesContainer) return;
+
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'flex items-start space-x-3 message-enter';
+
+        messageDiv.innerHTML = `
+            <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                <i class="fas fa-robot text-white text-sm"></i>
+            </div>
+            <div class="flex-1">
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 max-w-2xl ai-message">
+                    <div class="message-content"></div>
+                </div>
+                <p class="text-xs text-gray-500 mt-1">방금 전</p>
+            </div>
+        `;
+
+        messagesContainer.appendChild(messageDiv);
+        const contentDiv = messageDiv.querySelector('.message-content');
+
+        // 타이핑 효과
+        const formattedContent = this.formatMessage(content);
+        let currentIndex = 0;
+        
+        while (currentIndex < formattedContent.length) {
+            const char = formattedContent[currentIndex];
+            contentDiv.innerHTML += char;
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+            if (char !== ' ') {
+                await new Promise(resolve => setTimeout(resolve, this.typingSpeed * 1000));
+            }
+            currentIndex++;
+        }
+
+        // 메시지 저장
+        this.messages.push({
+            type,
+            content,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    formatMessage(content) {
         return content
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/\*(.*?)\*/g, '<em>$1</em>')
-            .replace(/\n/g, '<br>');
+            .replace(/\n/g, '<br>')
+            .replace(/`(.*?)`/g, '<code>$1</code>')
+            .replace(/https?:\/\/[^\s]+/g, '<a href="$&" target="_blank" rel="noopener noreferrer">$&</a>');
     }
 
-    async addTypingMessage(type, content) {
-        let displayedContent = '';
-        const speed = Math.max(this.typingSpeed, 0.005);
-        
-        // 임시 메시지 생성
-        this.addMessage(type, '');
-        const messagesContainer = document.getElementById('messagesContainer');
-        const lastMessage = messagesContainer.lastChild;
-        const contentElement = lastMessage.querySelector('.message-content');
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
 
-        for (let i = 0; i < content.length; i++) {
-            displayedContent += content[i];
-            contentElement.innerHTML = this.formatMessageContent(displayedContent);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            
-            if (i % 2 === 0) { // 2글자마다 딜레이
-                await new Promise(resolve => setTimeout(resolve, speed * 1000));
-            }
+    askSuggestedQuestion(question) {
+        const input = document.getElementById('messageInput');
+        if (input) {
+            input.value = question;
+            this.sendMessage();
         }
-
-        // 최종 메시지로 업데이트
-        this.messages[this.messages.length - 1].content = content;
     }
 
     updateQuestionCount() {
-        this.questionCount += 1;
-        const questionCountElement = document.getElementById('questionCount');
-        if (questionCountElement) {
-            questionCountElement.textContent = `${this.questionCount}`;
+        this.questionCount++;
+        const countElement = document.getElementById('questionCount');
+        if (countElement) {
+            countElement.textContent = `질문 ${this.questionCount}개`;
         }
     }
 
-    // ======== RAG CORE ========
-    async handleFileUpload(e) {
-        const file = e.target.files[0];
+    updateAPIKeyStatus() {
+        const statusElement = document.getElementById('apiStatus');
+        const statusTextElement = document.getElementById('apiStatusText');
+        
+        if (statusElement && statusTextElement) {
+            if (this.apiKey) {
+                statusElement.className = 'text-green-500';
+                statusTextElement.textContent = 'API 키 설정됨';
+            } else {
+                statusElement.className = 'text-red-500';
+                statusTextElement.textContent = 'API 키 미설정';
+            }
+        }
+    }
+
+    loadSuggestedQuestions() {
+        // 이미 HTML에 정의되어 있으므로 별도 로딩 불필요
+        console.log('자주 묻는 질문 로드 완료');
+    }
+
+    clearChat() {
+        const messagesContainer = document.getElementById('messagesContainer');
+        if (messagesContainer) {
+            // 초기 메시지만 남기고 모두 삭제
+            const initialMessage = messagesContainer.querySelector('.flex.items-start.space-x-3');
+            messagesContainer.innerHTML = '';
+            if (initialMessage) {
+                messagesContainer.appendChild(initialMessage.cloneNode(true));
+            }
+        }
+        
+        this.messages = [];
+        this.questionCount = 0;
+        this.updateQuestionCount();
+    }
+
+    async handleFileUpload(event) {
+        const file = event.target.files[0];
         if (!file) return;
 
+        if (file.type !== 'application/pdf') {
+            this.showToast('PDF 파일만 업로드 가능합니다.', 'error');
+            return;
+        }
+
+        if (!this.ragInitialized) {
+            this.showToast('문서 처리 기능이 초기화되지 않았습니다.', 'warning');
+            return;
+        }
+
         try {
-            FileHandler.validateFile(file, {
-                maxSize: 50 * 1024 * 1024, // 50MB
-                allowedTypes: ['application/pdf'],
-                allowedExtensions: ['.pdf']
-            });
-
-            this.showToast('문서 처리 중...', 'info');
-
-            if (!this.ragInitialized) {
-                await this.ragEngine.initialize();
-                this.ragInitialized = true;
-            }
-
-            this.ragEngine.clearVectorStore();
-            const chunkCount = await this.ragEngine.loadPDFDocument(file);
-            this.showToast(`문서 업로드 완료: ${chunkCount}개 청크 인덱싱`, 'success');
-            
-            e.target.value = '';
+            this.showToast('파일 처리 중...', 'info');
+            const chunksCount = await this.ragEngine.loadPDFDocument(file);
+            this.showToast(`파일이 성공적으로 처리되었습니다. (${chunksCount}개 청크)`, 'success');
         } catch (error) {
-            console.error('File upload error:', error);
-            this.showToast(error.message || '파일 처리 오류', 'error');
-        }
-    }
-
-    async processRAGQuery(query) {
-        try {
-            let contextData = null;
-            
-            if (this.ragInitialized && this.ragEngine.getDocumentStats().totalChunks > 0) {
-                contextData = await this.ragEngine.buildContext(query);
-            }
-
-            const systemPrompt = this.buildSystemPrompt(contextData);
-
-            const response = await fetch('https://api.openai.com/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.apiKey}`
-                },
-                body: JSON.stringify({
-                    model: 'gpt-3.5-turbo',
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: query }
-                    ],
-                    max_tokens: 800,
-                    temperature: 0.1
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`API Error: ${response.status}`);
-            }
-
-            const data = await response.json();
-            let aiResponse = data.choices[0].message.content;
-
-            if (contextData && contextData.sources.length > 0) {
-                aiResponse += '\n\n**참고 자료:**\n';
-                contextData.sources.forEach((source, i) => {
-                    aiResponse += `${i+1}. ${source}\n`;
-                });
-            }
-
-            return aiResponse;
-        } catch (error) {
-            console.error('RAG Query error:', error);
-            return this.getFallbackResponse(query);
-        }
-    }
-
-    buildSystemPrompt(contextData) {
-        let systemPrompt = `당신은 곡성군 민원상담 AI 어시스턴트입니다.`;
-
-        if (contextData && contextData.context && contextData.context !== '검색된 문서가 없습니다.') {
-            systemPrompt += `\n\n다음 문서 내용을 바탕으로 정확한 답변을 제공해주세요:\n\n${contextData.context}`;
-            
-            if (contextData.forms && contextData.forms.length > 0) {
-                systemPrompt += `\n\n**관련 별지/서식:**\n${contextData.forms.map(form => `- ${form}`).join('\n')}`;
-            }
-
-            systemPrompt += `\n\n답변 지침:
-- 문서 내용을 우선적으로 참고하여 답변
-- 민원업무명, 처리기간, 구비서류, 수수료 포함
-- 처리 절차를 단계별로 설명
-- 신청방법, 접수처, 담당부서 안내
-- 관련 법령/조례 인용
-- 별지/서식이 필요한 경우 안내`;
-        } else {
-            systemPrompt += `\n\n곡성군 민원 관련 질문에 대한 일반적인 안내를 제공하고, 구체적 정보는 해당 부서 연락처를 안내해주세요.`;
+            console.error('파일 처리 오류:', error);
+            this.showToast('파일 처리 중 오류가 발생했습니다.', 'error');
         }
 
-        systemPrompt += `\n\n응답은 친근하고 공손한 어조로 작성하며, 도움이 되는 정보를 제공해야 합니다.`;
-        return systemPrompt;
+        // 파일 입력 초기화
+        event.target.value = '';
     }
 
-    getFallbackResponse(query) {
-        const fallbackResponses = {
-            '주민등록': '주민등록증 발급은 곡성군청 민원실에서 가능합니다. 신분증과 수수료를 준비해주세요. 문의: 061-360-8000',
-            '건축허가': '건축허가 신청은 곡성군청 건축과에서 담당합니다. 관련 서류를 준비하여 방문해주세요. 문의: 061-360-8100',
-            '세금': '세금 관련 업무는 곡성군청 세무과에서 처리됩니다. 온라인 납부도 가능합니다. 문의: 061-360-8200',
-            '복지': '복지 혜택 관련 상담은 곡성군청 복지정책과에서 받을 수 있습니다. 문의: 061-360-8300'
-        };
-
-        for (const [keyword, response] of Object.entries(fallbackResponses)) {
-            if (query.includes(keyword)) {
-                return `${response}\n\n더 자세한 정보가 필요하시면 해당 부서로 직접 문의해주세요.`;
-            }
-        }
-
-        return `안녕하세요! 곡성군 민원상담봇입니다.\n\n"${query}"에 대한 구체적인 답변을 위해서는 곡성군청 민원실(061-360-8000)로 직접 문의해주시기 바랍니다.\n\n곡성군청 운영시간: 평일 09:00-18:00\n주소: 전라남도 곡성군 곡성읍 군청로 31`;
-    }
-
-    // ======== UI Methods ========
     openSettingsModal() {
         const modal = document.getElementById('settingsModal');
-        const apiKeyInput = document.getElementById('openaiApiKey');
+        const apiKeyInput = document.getElementById('apiKeyInput');
         
         if (modal) {
             modal.classList.remove('hidden');
@@ -433,25 +562,24 @@ class GokseongChatbot {
     }
 
     saveSettings() {
-        const apiKeyInput = document.getElementById('openaiApiKey');
+        const apiKeyInput = document.getElementById('apiKeyInput');
         const typingSpeedInput = document.getElementById('typingSpeed');
 
         if (apiKeyInput) {
-            const apiKey = apiKeyInput.value.trim();
-            if (apiKey) {
-                this.apiKey = apiKey;
-                localStorage.setItem('openai_api_key', apiKey);
+            const newApiKey = apiKeyInput.value.trim();
+            if (newApiKey) {
+                this.apiKey = newApiKey;
+                localStorage.setItem('openai_api_key', newApiKey);
+                this.updateAPIKeyStatus();
                 this.showToast('API 키가 저장되었습니다.', 'success');
             }
         }
 
         if (typingSpeedInput) {
-            const speed = parseFloat(typingSpeedInput.value);
-            this.typingSpeed = speed;
-            localStorage.setItem('typing_speed', speed.toString());
+            this.typingSpeed = parseFloat(typingSpeedInput.value);
+            localStorage.setItem('typing_speed', this.typingSpeed.toString());
         }
 
-        this.updateAPIKeyStatus();
         this.closeSettingsModal();
     }
 
@@ -469,88 +597,31 @@ class GokseongChatbot {
         }
     }
 
-    clearChat() {
-        const messagesContainer = document.getElementById('messagesContainer');
-        if (messagesContainer) {
-            // 초기 메시지만 남기고 삭제
-            const initialMessage = messagesContainer.querySelector('.message-enter');
-            messagesContainer.innerHTML = '';
-            if (initialMessage) {
-                messagesContainer.appendChild(initialMessage.cloneNode(true));
-            }
-        }
-        
-        this.messages = [];
-        this.questionCount = 0;
-        this.updateQuestionCount();
-        this.showToast('대화 기록이 삭제되었습니다.', 'info');
-    }
-
-    askSuggestedQuestion(question) {
-        const messageInput = document.getElementById('messageInput');
-        if (messageInput) {
-            messageInput.value = question;
-            messageInput.focus();
-            this.autoResizeTextarea({ target: messageInput });
-            this.updateSendButton();
-        }
-    }
-
-    updateAPIKeyStatus() {
-        const warning = document.getElementById('apiKeyWarning');
-        if (warning) {
-            if (!this.apiKey) {
-                warning.classList.remove('hidden');
-            } else {
-                warning.classList.add('hidden');
-            }
-        }
-    }
-
-    loadSuggestedQuestions() {
-        // 이미 HTML에 정의되어 있음
-        console.log('Suggested questions loaded');
-    }
-
     showToast(message, type = 'info') {
-        // Toast 생성
         const toast = document.createElement('div');
-        toast.className = `fixed top-4 right-4 px-4 py-3 rounded-lg text-white text-sm z-50 toast`;
+        toast.className = `toast ${type}`;
         
-        // 타입별 색상
-        switch (type) {
-            case 'success':
-                toast.classList.add('bg-green-500');
-                break;
-            case 'error':
-                toast.classList.add('bg-red-500');
-                break;
-            case 'warning':
-                toast.classList.add('bg-yellow-500');
-                break;
-            default:
-                toast.classList.add('bg-blue-500');
-        }
-
+        const colors = {
+            'success': 'border-green-500 bg-green-50 text-green-800',
+            'error': 'border-red-500 bg-red-50 text-red-800',
+            'warning': 'border-yellow-500 bg-yellow-50 text-yellow-800',
+            'info': 'border-blue-500 bg-blue-50 text-blue-800'
+        };
+        
+        toast.className = `fixed top-4 right-4 p-4 rounded-lg border-l-4 shadow-lg z-50 ${colors[type] || colors.info}`;
         toast.textContent = message;
+        
         document.body.appendChild(toast);
-
-        // 3초 후 자동 제거
+        
         setTimeout(() => {
             if (toast.parentNode) {
                 toast.parentNode.removeChild(toast);
             }
         }, 3000);
-
-        // 클릭시 즉시 제거
-        toast.addEventListener('click', () => {
-            if (toast.parentNode) {
-                toast.parentNode.removeChild(toast);
-            }
-        });
     }
 }
 
-// Global export
+// 전역으로 클래스 export
 window.GokseongChatbot = GokseongChatbot;
+
 
